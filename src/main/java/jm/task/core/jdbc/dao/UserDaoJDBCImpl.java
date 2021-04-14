@@ -8,93 +8,127 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UserDaoJDBCImpl implements UserDao {
+    private static Savepoint savepoint;
+    private static Connection connection;
+    private static Statement statement;
 
-    public UserDaoJDBCImpl() {
-
+    static {
+        try {
+            connection = Util.getConnection();
+            connection.setAutoCommit(false);
+        } catch (SQLException e) {
+            System.out.println("Не удалось подключиться " + e);
+        }
+        try {
+            statement = connection.createStatement();
+            savepoint = connection.setSavepoint("Save");
+        } catch (SQLException e) {
+            System.out.println("Не удалось создать statement " + e);
+        }
     }
 
     public void createUsersTable() {
-        try(Connection connection = Util.getConnection();
-            Statement statement = connection.createStatement()) {
-
-            statement.executeUpdate("CREATE TABLE IF NOT EXISTS user (id BIGINT(19) NOT NULL AUTO_INCREMENT, " +
-                    "name VARCHAR(40) NOT NULL, lastName VARCHAR(40) NOT NULL, " +
-                    "age TINYINT(3) NOT NULL, PRIMARY KEY (id));");
+        try {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS Users(" +
+                    "Id INT PRIMARY KEY AUTO_INCREMENT, " +
+                    "Name VARCHAR(100), " +
+                    "LastName VARCHAR(200), " +
+                    "Age INT)");
+            statement.executeUpdate("COMMIT");
+            connection.commit();
+            savepoint = connection.setSavepoint("Save");
         } catch (SQLException e) {
-            e.printStackTrace();
+            try {
+                connection.rollback(savepoint);
+            } catch (SQLException sqlException) {
+
+            }
+            System.out.println("Таблица уже создана");
         }
     }
 
     public void dropUsersTable() {
-        try(Connection connection = Util.getConnection();
-            Statement statement = connection.createStatement()) {
-
-            statement.executeUpdate("DROP TABLE IF EXISTS user;");
+        try {
+            statement.executeUpdate("DROP TABLE IF EXISTS Users");
+            statement.executeUpdate("COMMIT");
+            connection.commit();
+            savepoint = connection.setSavepoint("Save");
         } catch (SQLException e) {
-            e.printStackTrace();
+            try {
+                connection.rollback(savepoint);
+            } catch (SQLException sqlException) {
+
+            }
+            System.out.println("Таблица осутствует " + e);
         }
     }
 
     public void saveUser(String name, String lastName, byte age) {
-
-        try(Connection connection = Util.getConnection();
-            PreparedStatement statement = connection.prepareStatement("INSERT INTO user (name, lastname, age) " +
-                    "VALUES(?, ?, ?)")) {
-
-            statement.setString(1, name);
-            statement.setString(2, lastName);
-            statement.setByte(3, age);
-            statement.executeUpdate();
-
+        try {
+            statement.executeUpdate(String.format("INSERT Users(Name, LastName, Age) VALUES('%s', '%s', '%d')", name, lastName, age));
+            statement.executeUpdate("COMMIT");
+            System.out.printf("User с именем – %s добавлен в базу данных\n", name);
+            connection.commit();
+            savepoint = connection.setSavepoint("Save");
         } catch (SQLException e) {
-            e.printStackTrace();
+            try {
+                connection.rollback(savepoint);
+            } catch (SQLException sqlException) {
+
+            }
+            System.out.println(e);
         }
     }
 
     public void removeUserById(long id) {
-
-        try(Connection connection = Util.getConnection();
-            PreparedStatement statement = connection.prepareStatement("DELETE FROM user WHERE id = ?")) {
-            statement.setLong(1, id);
-            statement.executeUpdate();
-
+        try {
+            statement.executeUpdate(String.format("DELETE FROM Users WHERE ID = %d", id));
+            statement.executeUpdate("COMMIT");
+            connection.commit();
+            savepoint = connection.setSavepoint("Save");
         } catch (SQLException e) {
-            e.printStackTrace();
+            try {
+                connection.rollback(savepoint);
+            } catch (SQLException sqlException) {
+
+            }
+            System.out.println(e);
         }
     }
 
     public List<User> getAllUsers() {
-
         List<User> userList = new ArrayList<>();
-
-        try(Connection connection = Util.getConnection();
-            Statement statement = connection.createStatement()) {
-            ResultSet resultSet = statement.executeQuery("SELECT * FROM user");
-
+        try {
+            ResultSet resultSet = statement.executeQuery("SELECT * FROM Users");
             while (resultSet.next()) {
-                User users = new User();
-
-                users.setId(resultSet.getLong("id"));
-                users.setName(resultSet.getString("name"));
-                users.setLastName(resultSet.getString("lastName"));
-                users.setAge(resultSet.getByte("age"));
-
-                userList.add(users);
+                userList.add(new User(resultSet.getString(2), resultSet.getString(3), resultSet.getByte(4)));
             }
+            connection.commit();
+            savepoint = connection.setSavepoint("Save");
         } catch (SQLException e) {
-            e.printStackTrace();
+            try {
+                connection.rollback(savepoint);
+            } catch (SQLException sqlException) {
+
+            }
+            System.out.println(e);
         }
         return userList;
     }
 
     public void cleanUsersTable() {
-
         try {
-            Connection connection = Util.getConnection();
-            Statement statement = connection.createStatement();
-            statement.executeUpdate("TRUNCATE TABLE user;");
+            statement.executeUpdate("TRUNCATE TABLE Users");
+            statement.executeUpdate("COMMIT");
+            connection.commit();
+            savepoint = connection.setSavepoint("Save");
         } catch (SQLException e) {
-            e.printStackTrace();
+            try {
+                connection.rollback(savepoint);
+            } catch (SQLException sqlException) {
+
+            }
+            System.out.println(e);
         }
     }
 }
